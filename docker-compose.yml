@@ -49,12 +49,9 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
       AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      # Install pipeline dependencies on container start
       _PIP_ADDITIONAL_REQUIREMENTS: "requests==2.32.3 pandas==2.2.3 tenacity==8.5.0 python-dotenv==1.0.1 snowflake-connector-python==3.11.0"
-      # Optional: set these to unlock higher OpenSky rate limits
       OPENSKY_USER: ${OPENSKY_USER:-}
       OPENSKY_PASS: ${OPENSKY_PASS:-}
-      # Optional: API source for regional disruption overrides (CSV fallback still supported)
       EVENT_OVERRIDES_API_URL: ${EVENT_OVERRIDES_API_URL:-}
       EVENT_OVERRIDES_API_TOKEN: ${EVENT_OVERRIDES_API_TOKEN:-}
       EVENT_OVERRIDES_API_TOKEN_HEADER: ${EVENT_OVERRIDES_API_TOKEN_HEADER:-Authorization}

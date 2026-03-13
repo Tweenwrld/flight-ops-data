@@ -1,15 +1,9 @@
--- =============================================================
--- Flight Ops Decision Intelligence Pack (Dashboard-ready Views)
--- Purpose: create reusable objects for disruption monitoring,
---          capacity planning, and confidence-aware decisions.
--- =============================================================
+-- Flight Ops decision-intelligence views.
 
 USE DATABASE FLIGHTS;
 USE SCHEMA KPI;
 
--- -------------------------------------------------------------
--- 1) Executive Global Risk Board (latest available window)
--- -------------------------------------------------------------
+-- Latest global risk board.
 CREATE OR REPLACE VIEW FLIGHTS.KPI.V_EXEC_GLOBAL_RISK_BOARD_LATEST AS
 WITH latest AS (
     SELECT MAX(window_start) AS latest_window
@@ -43,11 +37,7 @@ SELECT
 FROM FLIGHTS.KPI.V_COUNTRY_DISRUPTION_RISK r
 JOIN latest l
   ON r.window_start = l.latest_window;
-
-
--- -------------------------------------------------------------
--- 2) Country Deep Dive Trend (filter by country in dashboard)
--- -------------------------------------------------------------
+-- Country trend view (filter by origin_country in BI).
 CREATE OR REPLACE VIEW FLIGHTS.KPI.V_COUNTRY_DEEP_DIVE_TREND AS
 WITH trend AS (
     SELECT
@@ -97,11 +87,7 @@ SELECT
     event_type,
     event_source
 FROM trend;
-
-
--- -------------------------------------------------------------
--- 3) Worsening Risk Detection (latest 3 windows acceleration)
--- -------------------------------------------------------------
+-- Worsening-risk acceleration view.
 CREATE OR REPLACE VIEW FLIGHTS.KPI.V_WORSENING_RISK_DETECTION AS
 WITH latest_country_windows AS (
     SELECT
@@ -145,11 +131,7 @@ SELECT
     END AS trend_signal
 FROM pivoted
 WHERE latest_total_flights >= 20;
-
-
--- -------------------------------------------------------------
--- 4) High-Impact Capacity Allocation Candidates (latest window)
--- -------------------------------------------------------------
+-- High-impact capacity allocation candidates.
 CREATE OR REPLACE VIEW FLIGHTS.KPI.V_CAPACITY_ALLOCATION_CANDIDATES_LATEST AS
 WITH latest AS (
     SELECT MAX(window_start) AS latest_window
@@ -186,11 +168,7 @@ SELECT
     ROUND(impact_score, 2) AS impact_score
 FROM scored
 WHERE total_flights >= 30;
-
-
--- -------------------------------------------------------------
--- 5) Decision Confidence / Data Trust Monitor
--- -------------------------------------------------------------
+-- Decision-confidence monitor.
 CREATE OR REPLACE VIEW FLIGHTS.KPI.V_DECISION_CONFIDENCE_MONITOR AS
 SELECT
     window_start,
@@ -201,11 +179,7 @@ SELECT
     COUNT(*)                                        AS total_countries_observed
 FROM FLIGHTS.KPI.FLIGHT_KPIS
 GROUP BY window_start;
-
-
--- -------------------------------------------------------------
--- 6) Active Event Overrides (ground-truth context)
--- -------------------------------------------------------------
+-- Active override context.
 CREATE OR REPLACE VIEW FLIGHTS.KPI.V_ACTIVE_EVENT_OVERRIDES AS
 SELECT
         region_type,
@@ -222,40 +196,30 @@ SELECT
 FROM FLIGHTS.KPI.REGIONAL_EVENT_OVERRIDES
 WHERE is_active = TRUE
     AND CURRENT_TIMESTAMP() BETWEEN event_start_utc AND event_end_utc;
+-- Query examples.
 
-
--- =============================================================
--- Run these SELECTs one-by-one for piece-by-piece insights
--- =============================================================
-
--- 1) Global risk board
 SELECT *
 FROM FLIGHTS.KPI.V_EXEC_GLOBAL_RISK_BOARD_LATEST
 ORDER BY disruption_risk_zscore DESC, total_flights DESC;
 
--- 2) Country deep dive (replace country)
 SELECT *
 FROM FLIGHTS.KPI.V_COUNTRY_DEEP_DIVE_TREND
 WHERE origin_country = 'United States'
 ORDER BY window_start DESC;
 
--- 3) Worsening risk detection
 SELECT *
 FROM FLIGHTS.KPI.V_WORSENING_RISK_DETECTION
 ORDER BY risk_z_now DESC, stress_delta_1_window DESC;
 
--- 4) Capacity allocation candidates (top 20)
 SELECT *
 FROM FLIGHTS.KPI.V_CAPACITY_ALLOCATION_CANDIDATES_LATEST
 ORDER BY impact_score DESC
 LIMIT 20;
 
--- 5) Decision confidence monitor
 SELECT *
 FROM FLIGHTS.KPI.V_DECISION_CONFIDENCE_MONITOR
 ORDER BY window_start DESC;
 
--- 6) Active event overrides in effect now
 SELECT *
 FROM FLIGHTS.KPI.V_ACTIVE_EVENT_OVERRIDES
 ORDER BY severity_score DESC, event_start_utc DESC;
