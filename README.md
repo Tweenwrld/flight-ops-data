@@ -1,10 +1,10 @@
 # Flight Ops Decision Intelligence
 
-Senior-level data pipeline that converts OpenSky telemetry into actionable disruption intelligence for airline operations leadership.
+A data pipeline that converts OpenSky telemetry into actionable disruption intelligence for airline operations.
 
 ## Business Outcome
 
-- Detect disruption earlier using quantified risk, not static thresholds.
+- Detect disruption earlier using quantified risk.
 - Prioritize intervention by country for network control, capacity allocation, and customer communications.
 - Blend telemetry with external event context to avoid false “normal” signals.
 
