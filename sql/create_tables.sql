@@ -1,23 +1,10 @@
--- =============================================================
--- Flight Ops Medallion Pipeline — Snowflake DDL
--- Database: FLIGHTS  |  Schema: KPI
--- Run once during project bootstrap
--- =============================================================
+-- Flight Ops Snowflake bootstrap (run once).
 
 CREATE DATABASE IF NOT EXISTS FLIGHTS;
 
 CREATE SCHEMA IF NOT EXISTS FLIGHTS.KPI;
 
--- ------------------------------------------------------------
--- Core KPI table
--- PK: (window_start, origin_country)
---   → window_start  = DAG data_interval_start (30-min bucket)
---   → origin_country = ISO country string from OpenSky
---
--- Populated via MERGE (upsert) so re-runs are idempotent.
--- Enriched for executive decision support (disruption monitoring,
--- operational stress, and data confidence).
--- ------------------------------------------------------------
+-- Core KPI fact table.
 CREATE TABLE IF NOT EXISTS FLIGHTS.KPI.FLIGHT_KPIS (
     window_start                    TIMESTAMP       NOT NULL,
     origin_country                  TEXT            NOT NULL,
@@ -39,10 +26,7 @@ CREATE TABLE IF NOT EXISTS FLIGHTS.KPI.FLIGHT_KPIS (
     PRIMARY KEY (window_start, origin_country)
 );
 
--- ------------------------------------------------------------
--- Optional compatibility alters for existing deployments
--- (safe to run repeatedly)
--- ------------------------------------------------------------
+-- Backward-compatible schema evolution.
 ALTER TABLE FLIGHTS.KPI.FLIGHT_KPIS ADD COLUMN IF NOT EXISTS ACTIVE_FLIGHTS INT;
 ALTER TABLE FLIGHTS.KPI.FLIGHT_KPIS ADD COLUMN IF NOT EXISTS PCT_GROUNDED FLOAT;
 ALTER TABLE FLIGHTS.KPI.FLIGHT_KPIS ADD COLUMN IF NOT EXISTS AVG_VELOCITY_ACTIVE FLOAT;
@@ -56,11 +40,7 @@ ALTER TABLE FLIGHTS.KPI.FLIGHT_KPIS ADD COLUMN IF NOT EXISTS DESCENDING_FLIGHTS 
 ALTER TABLE FLIGHTS.KPI.FLIGHT_KPIS ADD COLUMN IF NOT EXISTS DATA_COMPLETENESS_SCORE FLOAT;
 ALTER TABLE FLIGHTS.KPI.FLIGHT_KPIS ADD COLUMN IF NOT EXISTS OPERATIONAL_STRESS_INDEX FLOAT;
 
--- ------------------------------------------------------------
--- External event/intelligence overrides
--- Used to inject known disruptions (airspace restrictions, conflict,
--- NOTAM-heavy events) so risk bands reflect real operations context.
--- ------------------------------------------------------------
+-- External event overrides used by the risk model.
 CREATE TABLE IF NOT EXISTS FLIGHTS.KPI.REGIONAL_EVENT_OVERRIDES (
     event_id               NUMBER AUTOINCREMENT START 1 INCREMENT 1,
     region_type            TEXT            NOT NULL DEFAULT 'country',
@@ -77,9 +57,7 @@ CREATE TABLE IF NOT EXISTS FLIGHTS.KPI.REGIONAL_EVENT_OVERRIDES (
     updated_at             TIMESTAMP       DEFAULT CURRENT_TIMESTAMP()
 );
 
--- ------------------------------------------------------------
--- Decision-support view: disruption risk signal (z-score based)
--- ------------------------------------------------------------
+-- Event-aware country disruption risk view.
 CREATE OR REPLACE VIEW FLIGHTS.KPI.V_COUNTRY_DISRUPTION_RISK AS
 WITH base AS (
     SELECT
@@ -222,36 +200,6 @@ SELECT
     END AS disruption_band
 FROM banded;
 
--- ------------------------------------------------------------
--- Verification queries
--- ------------------------------------------------------------
--- Full table scan:
---   SELECT * FROM FLIGHTS.KPI.FLIGHT_KPIS ORDER BY window_start DESC, total_flights DESC;
-
--- Country filter (example):
---   SELECT * FROM FLIGHTS.KPI.FLIGHT_KPIS WHERE origin_country = 'Kenya';
-
--- Dashboard: top 20 countries by avg active flights per window
---   SELECT
---       origin_country,
---       ROUND(AVG(total_flights), 1)              AS avg_flights_per_window,
---       ROUND(AVG(avg_velocity_active), 1)        AS avg_airborne_speed_ms,
---       ROUND(AVG(pct_grounded), 2)               AS avg_pct_grounded,
---       ROUND(AVG(operational_stress_index), 2)   AS avg_operational_stress
---   FROM FLIGHTS.KPI.FLIGHT_KPIS
---   GROUP BY origin_country
---   ORDER BY avg_flights_per_window DESC
---   LIMIT 20;
-
--- Current disruption watchlist:
---   SELECT *
---   FROM FLIGHTS.KPI.V_COUNTRY_DISRUPTION_RISK
---   QUALIFY ROW_NUMBER() OVER (PARTITION BY origin_country ORDER BY window_start DESC) = 1
---   ORDER BY disruption_risk_zscore DESC;
-
--- Active event overrides now:
---   SELECT *
---   FROM FLIGHTS.KPI.REGIONAL_EVENT_OVERRIDES
---   WHERE is_active = TRUE
---     AND CURRENT_TIMESTAMP() BETWEEN event_start_utc AND event_end_utc
---   ORDER BY severity_score DESC;
+-- Optional checks:
+-- SELECT * FROM FLIGHTS.KPI.V_COUNTRY_DISRUPTION_RISK ORDER BY window_start DESC;
+-- SELECT * FROM FLIGHTS.KPI.REGIONAL_EVENT_OVERRIDES WHERE is_active = TRUE;

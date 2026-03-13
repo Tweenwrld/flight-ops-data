@@ -6,10 +6,7 @@ from pathlib import Path
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-# ---------------------------------------------------------------------------
-# Path bootstrap — allows `scripts/` to be imported as a package from any
-# Airflow worker without installing the project as a package.
-# ---------------------------------------------------------------------------
+# Ensure scripts imports resolve inside Airflow containers.
 AIRFLOW_HOME = Path("/opt/airflow")
 if str(AIRFLOW_HOME) not in sys.path:
     sys.path.insert(0, str(AIRFLOW_HOME))
@@ -22,9 +19,6 @@ from scripts.load_regional_event_overrides import load_regional_event_overrides
 
 log = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Default args — applied to every task unless overridden at task level
-# ---------------------------------------------------------------------------
 DEFAULT_ARGS = {
     "owner": "airflow",
     "retries": 1,
@@ -43,12 +37,8 @@ def _on_failure_callback(context: dict) -> None:
         "Task FAILED  dag=%s  task=%s  run=%s",
         dag_id, task_id, run_id,
     )
-    # ↳ Extend here: Slack webhook, PagerDuty, email, etc.
 
 
-# ---------------------------------------------------------------------------
-# DAG definition
-# ---------------------------------------------------------------------------
 with DAG(
     dag_id="flights_ops_medallion_pipe",
     description=(

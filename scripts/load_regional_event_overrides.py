@@ -252,12 +252,7 @@ def _normalize_overrides(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def load_regional_event_overrides(**context) -> None:
-    """
-    Load optional regional event intelligence into Snowflake.
-
-    This table lets business/event context override telemetry-only risk
-    when known disruptions are active (airspace restrictions, conflict, etc.).
-    """
+    """Load event override intelligence into Snowflake for risk band adjustments."""
     df_raw, source_name = _load_overrides_dataframe()
     df = _normalize_overrides(df_raw)
 

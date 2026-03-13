@@ -171,17 +171,7 @@ def _ensure_target_schema(cursor) -> None:
 
 
 def load_gold_to_snowflake(**context) -> None:
-    """
-    Batch-upsert gold KPI rows into Snowflake FLIGHT_KPIS via MERGE.
-
-    Key decisions:
-    - window_start is read from the gold CSV (data-driven), not from context —
-      correct even if gold covers multiple windows in future.
-    - executemany() sends all rows in a single round-trip instead of N loops.
-    - Explicit commit() — Snowflake connector does NOT auto-commit DML.
-    - try/finally guarantees sf_conn.close() runs even on exception.
-    - AirflowSkipException propagates cleanly if upstream was skipped.
-    """
+    """Upsert gold KPI rows into Snowflake via MERGE."""
     gold_file = context["ti"].xcom_pull(
         key="gold_file",
         task_ids="gold_aggregate",
@@ -204,7 +194,6 @@ def load_gold_to_snowflake(**context) -> None:
 
     log.info("Preparing to load %d rows from %s", len(df), gold_file)
 
-    # Build list-of-dicts for named-parameter executemany
     rows = [
         {
             "window_start": str(row["window_start"]),

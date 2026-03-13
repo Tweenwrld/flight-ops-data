@@ -31,12 +31,7 @@ GOLD_COLUMNS = [
 
 
 def run_gold_aggregate(**context) -> None:
-    """
-        Aggregate silver CSV into per-window, per-country executive KPI gold CSV.
-
-        The output is designed for senior operational decisions (capacity stress,
-        disruption early warning, and data confidence).
-    """
+    """Aggregate silver data into country-window KPIs."""
     interval_start: datetime = context["data_interval_start"]
     timestamp = interval_start.strftime("%Y%m%d_%H%M%S")
 
@@ -73,12 +68,11 @@ def run_gold_aggregate(**context) -> None:
             f"Silver file missing required columns for gold aggregation: {sorted(missing_columns)}"
         )
 
-    # Normalize booleans in case CSV reader infers object/string
+    # Normalize boolean-like fields after CSV deserialization.
     for col in ["on_ground", "is_stale_contact", "is_low_velocity"]:
         if df[col].dtype != bool:
             df[col] = df[col].astype(str).str.lower().map({"true": True, "false": False}).fillna(False)
 
-    # Enriched derived fields for operational analytics
     df["is_active"] = (~df["on_ground"]).astype(int)
     df["velocity_active"] = df["velocity"].where(~df["on_ground"])
     df["geo_altitude_active"] = df["geo_altitude"].where(~df["on_ground"])
@@ -115,7 +109,6 @@ def run_gold_aggregate(**context) -> None:
         .reset_index()
     )
 
-    # Null-safe defaults for countries with sparse active-flight measurements
     float_columns = [
         "avg_velocity_active",
         "p90_velocity_active",
@@ -140,7 +133,6 @@ def run_gold_aggregate(**context) -> None:
     agg["median_geo_altitude_active"] = agg["median_geo_altitude_active"].round(4)
     agg["avg_abs_vertical_rate_active"] = agg["avg_abs_vertical_rate_active"].round(4)
 
-    # Composite operational stress score (0-100): higher means potential disruption risk
     agg["operational_stress_index"] = (
         0.45 * agg["pct_grounded"]
         + 0.25 * agg["stale_contact_rate"]
@@ -148,15 +140,12 @@ def run_gold_aggregate(**context) -> None:
         + 0.10 * (100.0 - agg["data_completeness_score"])
     ).clip(lower=0.0, upper=100.0).round(2)
 
-    # Column order must exactly match Snowflake MERGE source SELECT
     agg = agg[GOLD_COLUMNS]
 
     gold_path = Path("/opt/airflow/data/gold")
     gold_path.mkdir(parents=True, exist_ok=True)
     output_file = gold_path / f"flights_gold_{timestamp}.csv"
 
-    # Push XCom before writing so downstream tasks can distinguish between
-    # "file was never created" vs "file write failed"
     context["ti"].xcom_push(key="gold_file", value=str(output_file))
 
     agg.to_csv(output_file, index=False)
