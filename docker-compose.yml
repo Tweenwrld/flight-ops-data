@@ -1,0 +1,116 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: airflow-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER}", "-d", "${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  airflow-init:
+    image: apache/airflow:2.9.3
+    container_name: airflow-init
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      _PIP_ADDITIONAL_REQUIREMENTS: ""
+    entrypoint: /bin/bash
+    command: >
+      -c "
+      echo 'Waiting for PostgreSQL...' &&
+      airflow db migrate &&
+      airflow users create --username ${AIRFLOW_ADMIN_USER} --firstname ${AIRFLOW_ADMIN_FIRSTNAME} --lastname ${AIRFLOW_ADMIN_LASTNAME} --role Admin --email ${AIRFLOW_ADMIN_EMAIL} --password ${AIRFLOW_ADMIN_PASSWORD} &&
+      echo '✅ Airflow DB initialized successfully.'"
+
+  airflow-webserver:
+    image: apache/airflow:2.9.3
+    container_name: airflow-webserver
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # Install pipeline dependencies on container start
+      _PIP_ADDITIONAL_REQUIREMENTS: "requests==2.32.3 pandas==2.2.3 tenacity==8.5.0 python-dotenv==1.0.1 snowflake-connector-python==3.11.0"
+      # Optional: set these to unlock higher OpenSky rate limits
+      OPENSKY_USER: ${OPENSKY_USER:-}
+      OPENSKY_PASS: ${OPENSKY_PASS:-}
+      # Optional: API source for regional disruption overrides (CSV fallback still supported)
+      EVENT_OVERRIDES_API_URL: ${EVENT_OVERRIDES_API_URL:-}
+      EVENT_OVERRIDES_API_TOKEN: ${EVENT_OVERRIDES_API_TOKEN:-}
+      EVENT_OVERRIDES_API_TOKEN_HEADER: ${EVENT_OVERRIDES_API_TOKEN_HEADER:-Authorization}
+      EVENT_OVERRIDES_API_TOKEN_PREFIX: ${EVENT_OVERRIDES_API_TOKEN_PREFIX:-Bearer}
+      EVENT_OVERRIDES_API_PAYLOAD_KEY: ${EVENT_OVERRIDES_API_PAYLOAD_KEY:-overrides}
+      EVENT_OVERRIDES_API_TIMEOUT_SEC: ${EVENT_OVERRIDES_API_TIMEOUT_SEC:-20}
+      EVENT_OVERRIDES_API_VERIFY_TLS: ${EVENT_OVERRIDES_API_VERIFY_TLS:-true}
+      EVENT_OVERRIDES_PREFER_API: ${EVENT_OVERRIDES_PREFER_API:-true}
+      EVENT_OVERRIDES_API_FALLBACK_TO_CSV: ${EVENT_OVERRIDES_API_FALLBACK_TO_CSV:-true}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./scripts:/opt/airflow/scripts
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data
+    ports:
+      - "8080:8080"
+    command: webserver
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  airflow-scheduler:
+    image: apache/airflow:2.9.3
+    container_name: airflow-scheduler
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY}
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      _PIP_ADDITIONAL_REQUIREMENTS: "requests==2.32.3 pandas==2.2.3 tenacity==8.5.0 python-dotenv==1.0.1 snowflake-connector-python==3.11.0"
+      OPENSKY_USER: ${OPENSKY_USER:-}
+      OPENSKY_PASS: ${OPENSKY_PASS:-}
+      EVENT_OVERRIDES_API_URL: ${EVENT_OVERRIDES_API_URL:-}
+      EVENT_OVERRIDES_API_TOKEN: ${EVENT_OVERRIDES_API_TOKEN:-}
+      EVENT_OVERRIDES_API_TOKEN_HEADER: ${EVENT_OVERRIDES_API_TOKEN_HEADER:-Authorization}
+      EVENT_OVERRIDES_API_TOKEN_PREFIX: ${EVENT_OVERRIDES_API_TOKEN_PREFIX:-Bearer}
+      EVENT_OVERRIDES_API_PAYLOAD_KEY: ${EVENT_OVERRIDES_API_PAYLOAD_KEY:-overrides}
+      EVENT_OVERRIDES_API_TIMEOUT_SEC: ${EVENT_OVERRIDES_API_TIMEOUT_SEC:-20}
+      EVENT_OVERRIDES_API_VERIFY_TLS: ${EVENT_OVERRIDES_API_VERIFY_TLS:-true}
+      EVENT_OVERRIDES_PREFER_API: ${EVENT_OVERRIDES_PREFER_API:-true}
+      EVENT_OVERRIDES_API_FALLBACK_TO_CSV: ${EVENT_OVERRIDES_API_FALLBACK_TO_CSV:-true}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./scripts:/opt/airflow/scripts
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data
+    command: scheduler
+
+volumes:
+  postgres_data:

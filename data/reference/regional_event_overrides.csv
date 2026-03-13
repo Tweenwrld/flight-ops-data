@@ -1,0 +1,2 @@
+region_type,region_value,event_type,source,notes,severity_score,min_disruption_band,event_start_utc,event_end_utc,is_active
+country,United Arab Emirates,airspace_restriction,manual_intel,Template row for regional disruption override. Set is_active=true to apply.,80,high,2026-03-13 00:00:00,2026-03-20 23:59:59,false

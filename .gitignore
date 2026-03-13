@@ -1,0 +1,53 @@
+# -----------------------------
+# Secrets / local environment
+# -----------------------------
+.env
+.env.*
+!.env.example
+
+# -----------------------------
+# Python cache / tooling
+# -----------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# -----------------------------
+# Virtual environments
+# -----------------------------
+.venv/
+venv/
+
+# -----------------------------
+# Local editor/agent artifacts
+# -----------------------------
+.vscode/
+.idea/
+.marscode/
+
+# -----------------------------
+# Runtime artifacts
+# -----------------------------
+logs/
+
+# -----------------------------
+# Generated medallion outputs
+# -----------------------------
+data/bronze/
+data/silver/
+data/gold/
+
+# Keep reference config files committed
+!data/reference/
+!data/reference/regional_event_overrides.csv
+
+# -----------------------------
+# OS noise
+# -----------------------------
+.DS_Store
+Thumbs.db
